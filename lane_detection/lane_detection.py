@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 # -----------------
 # --- VARIABLES ---
 # -----------------
-path = r'lane_detection/tape_images/image60.jpg'
+path = r'./images/image60.jpg'
 img = cv.imread(path)
 height, width, _ = img.shape
 vertices = np.array([[0, height], [int(width/3), int(height/3)], [int((width/3)*2), int(height/3)], [width, height]])
@@ -19,6 +19,15 @@ vertices = np.array([[0, height], [int(width/3), int(height/3)], [int((width/3)*
 # --- FUNCTIONS ---
 # -----------------
 def process_image(original_image):
+    """
+    This function processes the image in several steps.
+    (1) It makes the image gray.
+    (2) It blurs the image.
+    (3) It detects edges.
+    (4) Sets a region of interest.
+    (5) Detects lines in the image.
+    (6) Detects the angle of the road.
+    """
     start_time = time.time()
 
     processed_image = original_image
@@ -33,33 +42,29 @@ def process_image(original_image):
     lines = cv.HoughLinesP(processed_image, rho=1, theta=np.pi / 180, threshold=80, lines=100, minLineLength=10, maxLineGap=50)
 
     lane_lines = average_slope_intercept(processed_image, lines)
-    draw_lines(original_image, lines, (0, 255, 0))
+    # draw_lines(original_image, lines, (0, 255, 0))
     draw_lines(original_image, lane_lines, (255, 255, 255))
 
-    # draw_center_line(lane_lines)
+    draw_center_line(original_image, lane_lines[0], lane_lines[1])
 
     end_time = time.time()
     print('Processing took: {} seconds'.format(end_time - start_time))
     return original_image
 
-def print_lines(lines):
-    try:
-        # print(lines_t[0])
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            length = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-            # print('length: %s' % length)
-
-    except:
-        pass
 
 def region_of_interest(image, vertices):
+    """ 
+    This function sets a region of interest where the lanes could be found.
+    """
     mask = np.zeros_like(image)
     cv.fillPoly(mask, [vertices], 255)
     masked = cv.bitwise_and(image, mask)
     return masked
 
 def draw_lines(image, lines, color):
+    """
+    This function draws all lines in a list of lines on an image.
+    """
     try:
         for line in lines:
             coords = line[0]
@@ -70,20 +75,25 @@ def draw_lines(image, lines, color):
 
 # ------------------ EXPERIMENTAL ---------------------
 
-def draw_center_line(line1, line2, coords1, coords2):
-    m1, b1 = line1
-    m2, b2 = line2
-    x = (b2 - b1) / (m1 - m2)
-    y = m1 * x + b1
+def draw_center_line(img, line1, line2):
+    l = intersection(line1, line2)
+    cv.line(img=img, pt1=(int(l[0]), int(l[1])), pt2=(int(l[2]), int(l[3])), color=(255, 0, 0), thickness=3, lineType=cv.LINE_AA)
+    print(intersection(line1, line2))
 
-    intersection = int(round(x)), int(round(y))
-    x_coord2 = coords1[0][0]
-    x_coord1 = coords2[0][0]
-    print(x_coord1)
-    print(x_coord2)
-    mid_point = x_coord1 + (x_coord2 - x_coord1) / 2, height
+def intersection(line1, line2):
+    # Coords line 1
+    x11, y11, x12, y12 = line1[0]
+    poly1 = np.polyfit((x11, x12), (y11, y12), 1)
 
-    return [mid_point[0], mid_point[1], intersection[0], intersection[1]]
+    # Coords line 2
+    x21, y21, x22, y22 = line2[0]
+    poly2 = np.polyfit((x21, x22), (y21, y22), 1)
+
+    # Calculate intersection point from polynomial functions
+    x_inter = (poly1[1]-poly2[1]) / (poly2[0]-poly1[0])
+    y_inter = poly1[0] * x_inter + poly1[1]
+
+    return [x_inter, y_inter, abs(x11 - x21), height]
 
 def average_slope_intercept(frame, line_segments):
     """
@@ -103,9 +113,6 @@ def average_slope_intercept(frame, line_segments):
     boundary = 1/3
     left_region_boundary = width * (1 - boundary)  # left lane line segment should be on left 2/3 of the screen
     right_region_boundary = width * boundary # right lane line segment should be on left 2/3 of the screen
-    print('left region boundary: %s' % left_region_boundary)
-    print('right region boundary: %s' % right_region_boundary)
-    print('Sum: {}'.format(left_region_boundary + right_region_boundary))
 
     for line_segment in line_segments:
         for x1, y1, x2, y2 in line_segment:
@@ -132,11 +139,8 @@ def average_slope_intercept(frame, line_segments):
     if len(right_fit) > 0:
         lane_lines.append(make_points(right_fit_average))
 
-    print('lane lines: %s' % lane_lines)  # [[[316, 720, 484, 432]], [[1009, 720, 718, 432]]]
+    print('lane lines: %s' % lane_lines)
 
-    # print('centerline: %s' % draw_center_line(left_fit_average, right_fit_average, lane_lines[1], lane_lines[0]))
-
-    # return draw_center_line(left_fit_average, right_fit_average, lane_lines[1], lane_lines[0])
     return lane_lines
 
 # Converts polynomial (y = mx + b) to coördinates (x1, y1, x2, y2)
