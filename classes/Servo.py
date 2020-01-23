@@ -17,7 +17,6 @@ class Servo:
 		self.pwm.start(6.39)
 
 	def turn(self, angle):
-		current_angle = 0
 		duty = (angle / 180) * 4 + 3
 		self.pwm.ChangeDutyCycle(duty)
 
